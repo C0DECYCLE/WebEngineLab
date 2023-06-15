@@ -388,6 +388,7 @@ class Mat4 {
     }
 
     public view(pos: Vec3, dir: Vec3, up: Vec3): Mat4 {
+        dir.scale(-1);
         const xAxis: Vec3 = Vec3.Cross(up, dir);
         const yAxis: Vec3 = Vec3.Cross(dir, xAxis);
         const posI: Vec3 = new Vec3(
@@ -460,5 +461,23 @@ class Mat4 {
         isFloat64?: boolean
     ): Mat4 {
         return new Mat4(isFloat64).perspective(fov, aspect, near, far);
+    }
+
+    public static Aim(
+        pos: Vec3,
+        dir: Vec3,
+        up: Vec3,
+        isFloat64?: boolean
+    ): Mat4 {
+        return new Mat4(isFloat64).aim(pos, dir, up);
+    }
+
+    public static View(
+        pos: Vec3,
+        dir: Vec3,
+        up: Vec3,
+        isFloat64?: boolean
+    ): Mat4 {
+        return new Mat4(isFloat64).view(pos, dir, up);
     }
 }
