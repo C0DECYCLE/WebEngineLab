@@ -4,7 +4,7 @@
     2023
 */
 
-window.addEventListener("compile", async (_event: Event): Promise<void> => {
+function createCanvas(): HTMLCanvasElement {
     const canvas: HTMLCanvasElement = document.createElement("canvas");
     canvas.width = document.body.clientWidth * devicePixelRatio;
     canvas.height = document.body.clientHeight * devicePixelRatio;
@@ -14,9 +14,13 @@ window.addEventListener("compile", async (_event: Event): Promise<void> => {
     canvas.style.width = "100%";
     canvas.style.height = "100%";
     document.body.appendChild(canvas);
+    return canvas;
+}
 
+window.addEventListener("compile", async (_event: Event): Promise<void> => {
     //////////// SETUP ////////////
 
+    const canvas: HTMLCanvasElement = createCanvas();
     const adapter: Nullable<GPUAdapter> = await navigator.gpu?.requestAdapter();
     const device: Undefinable<GPUDevice> = await adapter?.requestDevice();
     const context: Nullable<GPUCanvasContext> = canvas.getContext("webgpu");
@@ -33,51 +37,16 @@ window.addEventListener("compile", async (_event: Event): Promise<void> => {
     //////////// SHADER ////////////
 
     const module: GPUShaderModule = device.createShaderModule({
-        label: "our hardcoded red triangle shaders",
-        code: `
-            struct Uniforms {
-                matrix: mat4x4f,
-            };
-
-            struct OurVertexShaderOutput {
-                @builtin(position) position: vec4f,
-                @location(0) color: vec4f,
-            };
-            
-            @group(0) @binding(0) var<uniform> uni: Uniforms;
-
-            @vertex fn vs(
-                @builtin(vertex_index) vertexIndex : u32
-            ) -> OurVertexShaderOutput {
-                var pos = array<vec3f, 6>(
-                    vec3f( 0.0,  1.0,  0.0),  // top center
-                    vec3f(-0.5,  0.0,  0.0),  // bottom left
-                    vec3f( 0.5,  0.0,  0.0),  // bottom right
-                    vec3f( 0.0,  0.0, -2.0),
-                    vec3f(-2.0,  0.0,  2.0),
-                    vec3f( 2.0,  0.0,  2.0),
-                );
-                var color = array<vec3f, 3>(
-                    vec3f(1.0, 0.0, 0.0), // red
-                    vec3f(0.0, 1.0, 0.0), // green
-                    vec3f(0.0, 0.0, 1.0), // blue
-                );
-                var vsOutput: OurVertexShaderOutput;
-                vsOutput.position = uni.matrix * vec4f(pos[vertexIndex], 1.0);
-                vsOutput.color = vec4f(color[vertexIndex % 3], 1.0);
-                return vsOutput;
-            }
-        
-            @fragment fn fs(fsInput: OurVertexShaderOutput) -> @location(0) vec4f {
-                return fsInput.color;
-            }
-        `,
+        label: "normal shader",
+        code: await fetch("shader.wgsl").then(
+            async (response: Response) => await response.text()
+        ),
     } as GPUShaderModuleDescriptor);
 
     //////////// PIPELINE ////////////
 
     const pipeline: GPURenderPipeline = device.createRenderPipeline({
-        label: "our hardcoded red triangle pipeline",
+        label: "geometry pipeline",
         layout: "auto",
         vertex: {
             module,
@@ -88,11 +57,9 @@ window.addEventListener("compile", async (_event: Event): Promise<void> => {
             entryPoint: "fs",
             targets: [{ format: presentationFormat }],
         } as GPUFragmentState,
-        /*
         primitive: {
             cullMode: "back",
         } as GPUPrimitiveState,
-        */
         depthStencil: {
             depthWriteEnabled: true,
             depthCompare: "less",
@@ -110,11 +77,11 @@ window.addEventListener("compile", async (_event: Event): Promise<void> => {
     } as GPURenderPassColorAttachment;
 
     const depthTexture = device.createTexture({
+        label: "depth texture",
         size: [canvas.width, canvas.height],
         format: "depth24plus",
         usage: GPUTextureUsage.RENDER_ATTACHMENT,
     });
-
     const depthStencilAttachment: GPURenderPassDepthStencilAttachment = {
         view: depthTexture.createView(),
         depthClearValue: 1.0,
@@ -123,63 +90,85 @@ window.addEventListener("compile", async (_event: Event): Promise<void> => {
     } as GPURenderPassDepthStencilAttachment;
 
     const renderPassDescriptor: GPURenderPassDescriptor = {
-        label: "our basic canvas renderPass",
+        label: "canvas render pass",
         colorAttachments: [colorAttachment],
         depthStencilAttachment: depthStencilAttachment,
     } as GPURenderPassDescriptor;
 
     //////////// UNIFORM ////////////
 
-    const uniformBufferSize: int = 16 * 4; //4x4 32-bit floats
+    //4x4 32-bit floats
+    const uniformValues: Float32Array = new Float32Array(16);
+
     const uniformBuffer: GPUBuffer = device.createBuffer({
-        label: "uniforms",
-        size: uniformBufferSize,
+        label: "uniforms uniform buffer",
+        size: uniformValues.byteLength,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     } as GPUBufferDescriptor);
 
-    const uniformValues: Float32Array = new Float32Array(uniformBufferSize / 4);
-    const kMatrixOffset: int = 0;
-    const matrixValue: Float32Array = uniformValues.subarray(
-        kMatrixOffset,
-        kMatrixOffset + 16
+    //////////// VERTECIES ////////////
+
+    const raw: string = await fetch("/models/dragon.obj").then(
+        async (response: Response) => await response.text()
     );
+    const vertexData: Float32Array = ObjParser.Parse(raw);
+    const vertexCount: int = vertexData.length / 4.0;
+
+    const verteciesBuffer: GPUBuffer = device.createBuffer({
+        label: "vertices storage buffer",
+        size: vertexData.byteLength,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    } as GPUBufferDescriptor);
+    device.queue.writeBuffer(verteciesBuffer, 0, vertexData);
+
+    //////////// BINDGROUP ////////////
 
     const bindGroup: GPUBindGroup = device.createBindGroup({
-        label: "bind group for object",
+        label: "bind group for geometry",
         layout: pipeline.getBindGroupLayout(0),
-        entries: [{ binding: 0, resource: { buffer: uniformBuffer } }],
+        entries: [
+            {
+                binding: 0,
+                resource: { buffer: uniformBuffer } as GPUBindingResource,
+            } as GPUBindGroupEntry,
+            {
+                binding: 1,
+                resource: { buffer: verteciesBuffer } as GPUBindingResource,
+            } as GPUBindGroupEntry,
+        ],
     } as GPUBindGroupDescriptor);
 
     //////////// MATRIX ////////////
 
     const world: Mat4 = new Mat4();
     const view: Mat4 = new Mat4();
+    const projection: Mat4 = Mat4.Perspective(
+        60 * toRadian,
+        canvas.width / canvas.height,
+        1.0,
+        100.0
+    );
+    const worldViewProjection: Mat4 = new Mat4();
+
     const cameraPos: Vec3 = new Vec3();
     const cameraDir: Vec3 = new Vec3();
     const up: Vec3 = new Vec3(0.0, 1.0, 0.0);
-    const projection: Mat4 = Mat4.Perspective(
-        60 * toRadian,
-        document.body.clientWidth / document.body.clientHeight,
-        1,
-        100
-    );
-    const viewProjectionMatrix: Mat4 = new Mat4();
 
+    const speed: float = 0.0005;
     function render(now: float): void {
         //////////// UPDATE ////////////
 
-        //world.rotateX(1 * toRadian);
-        //world.rotateY(1 * toRadian);
-        //world.rotateZ(1 * toRadian);
         cameraPos
-            .set(Math.cos(now * 0.001), 0.5, Math.sin(now * 0.001))
-            .scale(10.0);
-        cameraDir.copy(cameraPos).normalize().scale(-1);
+            .set(Math.cos(now * speed), 0.35, Math.sin(now * speed))
+            .scale(4.5);
+        cameraDir.copy(cameraPos).normalize().scale(-1.0);
+        cameraPos.add(0.0, 1.25, 0.0);
+
         view.view(cameraPos, cameraDir, up);
-        viewProjectionMatrix
+        worldViewProjection
             .multiply(view, projection)
-            .multiply(world, viewProjectionMatrix)
-            .store(matrixValue);
+            .multiply(world, worldViewProjection)
+            .store(uniformValues);
         device?.queue.writeBuffer(uniformBuffer, 0, uniformValues);
 
         //////////// DRAW ////////////
@@ -188,14 +177,14 @@ window.addEventListener("compile", async (_event: Event): Promise<void> => {
         depthStencilAttachment.view = depthTexture.createView();
 
         const encoder: GPUCommandEncoder = device!.createCommandEncoder({
-            label: "our encoder",
+            label: "frame command encoder",
         } as GPUObjectDescriptorBase);
 
         const pass: GPURenderPassEncoder =
             encoder.beginRenderPass(renderPassDescriptor);
         pass.setPipeline(pipeline);
         pass.setBindGroup(0, bindGroup);
-        pass.draw(6);
+        pass.draw(vertexCount);
         pass.end();
 
         const commandBuffer: GPUCommandBuffer = encoder.finish();
