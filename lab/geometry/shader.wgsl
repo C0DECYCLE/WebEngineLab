@@ -25,4 +25,9 @@ struct VertexShaderOut {
 @fragment fn fs(in: VertexShaderOut) -> @location(0) vec4f {
     let normal: vec3f = normalize(cross(dpdx(in.worldPosition), dpdy(in.worldPosition)));
     return vec4f(normal * 0.5 + 0.5, 1.0);
+    /*
+    let light: vec3f = vec3f(0.0, -1.0, 0.0);
+    let shading: f32 = max(0.0, dot(normal, light));
+    return vec4f(vec3f(1.0, 1.0, 1.0) * shading, 1.0);
+    */
 }

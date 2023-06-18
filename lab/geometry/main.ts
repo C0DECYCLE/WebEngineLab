@@ -22,7 +22,11 @@ window.addEventListener("compile", async (_event: Event): Promise<void> => {
 
     const canvas: HTMLCanvasElement = createCanvas();
     const adapter: Nullable<GPUAdapter> = await navigator.gpu?.requestAdapter();
-    const device: Undefinable<GPUDevice> = await adapter?.requestDevice();
+    const device: Undefinable<GPUDevice> = await adapter?.requestDevice({
+        requiredFeatures: [
+            /*"timestamp-query"*/
+        ],
+    } as GPUDeviceDescriptor);
     const context: Nullable<GPUCanvasContext> = canvas.getContext("webgpu");
     if (!device || !context) {
         throw new Error("WebEngineLab: Browser doesn't support WebGPU.");
@@ -154,8 +158,49 @@ window.addEventListener("compile", async (_event: Event): Promise<void> => {
     const cameraDir: Vec3 = new Vec3();
     const up: Vec3 = new Vec3(0.0, 1.0, 0.0);
 
+    //////////// STATS ////////////
+
     const speed: float = 0.0005;
-    function render(now: float): void {
+    const stats: Stats = new Stats();
+    stats.set("frame delta", 0);
+    stats.show();
+
+    //////////// TIMINGQUERY ////////////
+    /*
+    const capacity: int = 3; //Max number of timestamps we can store
+    const querySet: GPUQuerySet = device.createQuerySet({
+        type: "timestamp",
+        count: capacity,
+    } as GPUQuerySetDescriptor);
+    const queryBuffer: GPUBuffer = device.createBuffer({
+        size: 8 * capacity,
+        usage:
+            GPUBufferUsage.QUERY_RESOLVE |
+            GPUBufferUsage.STORAGE |
+            GPUBufferUsage.COPY_SRC |
+            GPUBufferUsage.COPY_DST,
+    } as GPUBufferDescriptor);
+
+    async function readBuffer(
+        device: GPUDevice,
+        buffer: GPUBuffer
+    ): Promise<ArrayBuffer> {
+        const size: int = buffer.size;
+        const gpuReadBuffer: GPUBuffer = device.createBuffer({
+            size,
+            usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+        } as GPUBufferDescriptor);
+        const copyEncoder: GPUCommandEncoder = device.createCommandEncoder();
+        copyEncoder.copyBufferToBuffer(buffer, 0, gpuReadBuffer, 0, size);
+        const copyCommands: GPUCommandBuffer = copyEncoder.finish();
+        device.queue.submit([copyCommands]);
+        await gpuReadBuffer.mapAsync(GPUMapMode.READ);
+        return gpuReadBuffer.getMappedRange();
+    }
+    */
+    async function render(now: float): Promise<void> {
+        stats.time("cpu delta");
+
         //////////// UPDATE ////////////
 
         cameraPos
@@ -180,6 +225,8 @@ window.addEventListener("compile", async (_event: Event): Promise<void> => {
             label: "frame command encoder",
         } as GPUObjectDescriptorBase);
 
+        //encoder.writeTimestamp(querySet, 0);
+
         const pass: GPURenderPassEncoder =
             encoder.beginRenderPass(renderPassDescriptor);
         pass.setPipeline(pipeline);
@@ -187,8 +234,34 @@ window.addEventListener("compile", async (_event: Event): Promise<void> => {
         pass.draw(vertexCount);
         pass.end();
 
+        //encoder.writeTimestamp(querySet, 1);
+        //encoder.resolveQuerySet(querySet, 0, capacity, queryBuffer, 0);
+
         const commandBuffer: GPUCommandBuffer = encoder.finish();
         device?.queue.submit([commandBuffer]);
+
+        //////////// FRAME ////////////
+
+        stats.set("frame delta", now - stats.get("frame delta")!);
+        stats.time("cpu delta", "cpu delta");
+        /*
+        const arrayBuffer = await readBuffer(device!, queryBuffer);
+        const timingsNanoseconds = new BigInt64Array(arrayBuffer);
+        const gpuDelta: float =
+            Number(timingsNanoseconds[1] - timingsNanoseconds[0]) / 1_000_000;
+        */
+        // prettier-ignore
+        stats.update(`
+            <b>frame rate: ${(1_000 / stats.get("frame delta")!).toFixed(1)} fps</b><br>
+            frame delta: ${stats.get("frame delta")!.toFixed(2)} ms<br>
+            <br>
+            <b>cpu rate: ${(1_000 / stats.get("cpu delta")!).toFixed(1)} fps</b><br>
+            cpu delta: ${stats.get("cpu delta")!.toFixed(2)} ms<br>`/*+`
+            <br>
+            <b>gpu rate: ${(1_000 / gpuDelta).toFixed(1)} fps</b><br>
+            gpu delta: ${gpuDelta.toFixed(2)} ms<br>
+        `*/);
+        stats.set("frame delta", now);
 
         requestAnimationFrame(render);
     }
