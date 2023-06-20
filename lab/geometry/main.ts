@@ -206,7 +206,7 @@ window.addEventListener("compile", async (_event: Event): Promise<void> => {
         cameraPos
             .set(Math.cos(now * speed), 0.35, Math.sin(now * speed))
             .scale(4.5);
-        cameraDir.copy(cameraPos).normalize().scale(-1.0);
+        cameraDir.copy(cameraPos).normalize();
         cameraPos.add(0.0, 1.25, 0.0);
 
         view.view(cameraPos, cameraDir, up);

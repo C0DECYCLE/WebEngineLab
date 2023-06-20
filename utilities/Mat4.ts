@@ -388,7 +388,6 @@ class Mat4 {
     }
 
     public view(pos: Vec3, dir: Vec3, up: Vec3): Mat4 {
-        dir.scale(-1);
         const xAxis: Vec3 = Vec3.Cross(up, dir);
         const yAxis: Vec3 = Vec3.Cross(dir, xAxis);
         const posI: Vec3 = new Vec3(

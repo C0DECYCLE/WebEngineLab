@@ -174,7 +174,7 @@ window.addEventListener("compile", async (_event: Event): Promise<void> => {
         cameraPos
             .set(Math.cos(now * 0.001), 0.5, Math.sin(now * 0.001))
             .scale(10.0);
-        cameraDir.copy(cameraPos).normalize().scale(-1);
+        cameraDir.copy(cameraPos).normalize();
         view.view(cameraPos, cameraDir, up);
         viewProjectionMatrix
             .multiply(view, projection)

@@ -145,13 +145,13 @@ window.addEventListener("compile", async (_event: Event): Promise<void> => {
     const projection: Mat4 = Mat4.Perspective(
         60 * toRadian,
         canvas.width / canvas.height,
-        1.0,
-        100.0
+        0.01,
+        1000.0
     );
     const worldViewProjection: Mat4 = new Mat4();
 
-    const cameraPos: Vec3 = new Vec3(0.0, 0.0, 10.0);
-    const cameraDir: Vec3 = new Vec3(0.0, 0.0, -1.0);
+    const cameraPos: Vec3 = new Vec3(0.0, 2.0, 5.0);
+    const cameraDir: Vec3 = new Vec3(0.0, 0.0, 1.0);
     const up: Vec3 = new Vec3(0.0, 1.0, 0.0);
 
     //////////// CONTROL ////////////
@@ -160,11 +160,13 @@ window.addEventListener("compile", async (_event: Event): Promise<void> => {
         position: cameraPos,
         direction: cameraDir,
     });
-    log(control);
+
+    canvas.addEventListener("click", () => {
+        canvas.requestPointerLock();
+    });
 
     //////////// STATS ////////////
 
-    const speed: float = 0.0005;
     const stats: Stats = new Stats();
     stats.set("frame delta", 0);
     stats.show();
@@ -173,14 +175,7 @@ window.addEventListener("compile", async (_event: Event): Promise<void> => {
         stats.time("cpu delta");
 
         //////////// UPDATE ////////////
-
-        cameraPos
-            .set(Math.cos(now * speed), 0.35, Math.sin(now * speed))
-            .scale(4.5);
-        cameraDir.copy(cameraPos).normalize().scale(-1.0);
-        cameraPos.add(0.0, 1.25, 0.0);
-
-        //control.update();
+        control.update();
 
         view.view(cameraPos, cameraDir, up);
         worldViewProjection
