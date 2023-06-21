@@ -14,6 +14,7 @@ class Control {
     private transform: Mat4 = new Mat4();
 
     private velocity: float = 0.1;
+    private locked: boolean = false;
 
     public constructor(camera: { position: Vec3; direction: Vec3 }) {
         this.camera = camera;
@@ -26,28 +27,23 @@ class Control {
 
     private register(): void {
         document.addEventListener("keydown", (event: KeyboardEvent) => {
-            event.preventDefault();
             this.pressing.set(event.key.toLowerCase(), true);
         });
         document.addEventListener("keyup", (event: KeyboardEvent) => {
-            event.preventDefault();
             this.pressing.set(event.key.toLowerCase(), false);
         });
         document.addEventListener("wheel", (event: WheelEvent) => {
             this.velocity -= event.deltaY * 0.0001;
             this.velocity = this.velocity.clamp(0.01, 1.0);
         });
+        document.addEventListener("pointerlockchange", (_event: Event) => {
+            this.locked = !this.locked;
+        });
         document.addEventListener("mousemove", (event: MouseEvent) => {
-            this.transform.reset();
-            this.transform.rotateY(-event.movementX * 0.1 * toRadian);
-            this.camera.direction.applyMat(this.transform);
-            this.left.copy(this.camera.direction).cross(this.up);
-            this.transform.reset();
-            this.transform.rotateAxis(
-                this.left.normalize(),
-                event.movementY * 0.1 * toRadian
-            );
-            this.camera.direction.applyMat(this.transform);
+            if (!this.locked) {
+                return;
+            }
+            this.mouseDirection(event.movementX, event.movementY);
         });
     }
 
@@ -70,5 +66,15 @@ class Control {
         this.camera.position.add(
             this.direction.normalize().scale(this.velocity)
         );
+    }
+
+    private mouseDirection(x: float, y: float): void {
+        this.transform.reset();
+        this.transform.rotateY(-x * 0.1 * toRadian);
+        this.camera.direction.applyMat(this.transform);
+        this.left.copy(this.camera.direction).cross(this.up);
+        this.transform.reset();
+        this.transform.rotateAxis(this.left.normalize(), y * 0.1 * toRadian);
+        this.camera.direction.applyMat(this.transform).normalize();
     }
 }
