@@ -97,14 +97,34 @@ window.addEventListener("compile", async (_event: Event): Promise<void> => {
 
     //////////// UNIFORM ////////////
 
-    //4x4 32-bit floats
-    const uniformValues: Float32Array = new Float32Array(16);
+    const byteSize: int = 4;
+    const uniformBufferSize: int = 16 * byteSize + 1 * byteSize;
 
     const uniformBuffer: GPUBuffer = device.createBuffer({
         label: "uniforms uniform buffer",
-        size: uniformValues.byteLength,
+        size:
+            uniformBufferSize +
+            (4 * byteSize - (uniformBufferSize % (4 * byteSize))),
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     } as GPUBufferDescriptor);
+
+    const uniformArrayBuffer = new ArrayBuffer(uniformBufferSize);
+    const floatValues: Float32Array = new Float32Array(uniformArrayBuffer);
+    const intValues: Uint32Array = new Uint32Array(uniformArrayBuffer);
+
+    const matrixOffset: int = 0;
+    const modeOffset: int = 16;
+
+    (window as any).setMode = (mode: 0 | 1 | 2) => {
+        intValues[modeOffset] = mode;
+        device?.queue.writeBuffer(
+            uniformBuffer,
+            modeOffset * byteSize,
+            uniformArrayBuffer,
+            modeOffset * byteSize
+        );
+    };
+    (window as any).setMode(1);
 
     //////////// VERTECIES ////////////
 
@@ -112,14 +132,62 @@ window.addEventListener("compile", async (_event: Event): Promise<void> => {
         async (response: Response) => await response.text()
     );
     const vertexData: Float32Array = ObjParser.Parse(raw);
-    const vertexCount: int = vertexData.length / 4.0;
+    const vertexCount: int = vertexData.length / 4;
+    log(vertexCount);
+
+    const vertexArrayBuffer = vertexData.buffer;
 
     const verteciesBuffer: GPUBuffer = device.createBuffer({
         label: "vertices storage buffer",
-        size: vertexData.byteLength,
+        size: vertexArrayBuffer.byteLength,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     } as GPUBufferDescriptor);
-    device.queue.writeBuffer(verteciesBuffer, 0, vertexData);
+
+    const clusterIdData: Uint32Array = new Uint32Array(vertexArrayBuffer);
+
+    let currentId: int = 2;
+    //let currentCount: int = 0;
+    const currentVerts: int[] = [];
+    let diffX: float = 0;
+    let diffY: float = 0;
+    let diffZ: float = 0;
+    let distanceSquared: float = 0;
+
+    let i: int;
+    let j: int;
+    for (i = 0; i < vertexCount; i++) {
+        if (clusterIdData[i * 4 + 3] !== 0.0) {
+            continue;
+        }
+        clusterIdData[i * 4 + 3] = currentId;
+        /*
+        currentVerts.push(i);
+        for (j = 0; j < 128; j++) {
+            if (currentVerts.length > 128) {
+                break;
+            }
+            if (clusterIdData[j * 4 + 3] !== 0.0) {
+                continue;
+            }
+            if (currentVerts.includes(j)) {
+                continue;
+            }
+            diffX = clusterIdData[i * 4 + 0] - clusterIdData[j * 4 + 0];
+            diffY = clusterIdData[i * 4 + 1] - clusterIdData[j * 4 + 1];
+            diffZ = clusterIdData[i * 4 + 2] - clusterIdData[j * 4 + 2];
+            distanceSquared = diffX * diffX + diffY * diffY + diffZ * diffZ;
+            if (distanceSquared < 16384) {
+                currentVerts.push(j);
+                clusterIdData[j * 4 + 3] = currentId;
+            }
+        }
+        */
+        currentId++;
+        currentVerts.clear();
+    }
+    log("complete");
+
+    device.queue.writeBuffer(verteciesBuffer, 0, vertexArrayBuffer);
 
     //////////// BINDGROUP ////////////
 
@@ -181,8 +249,13 @@ window.addEventListener("compile", async (_event: Event): Promise<void> => {
         worldViewProjection
             .multiply(view, projection)
             .multiply(world, worldViewProjection)
-            .store(uniformValues);
-        device?.queue.writeBuffer(uniformBuffer, 0, uniformValues);
+            .store(floatValues, matrixOffset);
+        device?.queue.writeBuffer(
+            uniformBuffer,
+            matrixOffset * byteSize,
+            uniformArrayBuffer,
+            matrixOffset * byteSize
+        );
 
         //////////// DRAW ////////////
 

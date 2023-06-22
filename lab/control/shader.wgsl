@@ -1,36 +1,71 @@
 struct Uniforms {
     matrix: mat4x4f,
+    mode: u32, // 0: triangle, 1: cluster, 2: normal
 };
 
 struct Vertex {
-    position: vec4f,
+    position: vec3f,
+    clusterId: u32,
 };
 
 struct VertexShaderOut {
     @builtin(position) position: vec4f,
-    @interpolate(flat) @location(0) worldPosition: vec3f,
+    @location(0) worldPosition: vec3f,
+    @interpolate(flat) @location(1) flatWorldPosition: vec3f,
+    @interpolate(flat) @location(2) clusterId: u32,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 @group(0) @binding(1) var<storage, read> vertecies: array<Vertex>;
 
 @vertex fn vs(@builtin(vertex_index) vertexIndex: u32) -> VertexShaderOut {
-    let vertexPosition: vec3f = vertecies[vertexIndex].position.xyz;
+    let vertex: Vertex = vertecies[vertexIndex];
     var out: VertexShaderOut;
-    out.position = uniforms.matrix * vec4f(vertexPosition, 1.0);
-    out.worldPosition = vertexPosition;
+    out.position = uniforms.matrix * vec4f(vertex.position, 1.0);
+    out.worldPosition = vertex.position;
+    out.flatWorldPosition = vertex.position;
+    out.clusterId = vertex.clusterId;
     return out;
 }
 
 @fragment fn fs(in: VertexShaderOut) -> @location(0) vec4f {
+    if (uniforms.mode == 0) {
+        return triangleShade(in.flatWorldPosition);
+    }
+    if (uniforms.mode == 1) {
+        return clusterShade(in.clusterId);
+    }
+    if (uniforms.mode == 2) {
+        return normalShade(in.worldPosition);
+    }
+    return vec4f(0.0, 0.0, 0.0, 1.0);
+}
+
+fn triangleShade(pos: vec3f) -> vec4f {
     let s: f32 = 100.0;
-    let ox: f32 = in.worldPosition.x * s;
-    let oy: f32 = in.worldPosition.y * s;
-    let oz: f32 = in.worldPosition.z * s;
-    let x: f32 = noise3(vec3f(oy, oz, ox));
-    let y: f32 = noise3(vec3f(oz, ox, oy));
-    let z: f32 = noise3(vec3f(ox, oy, oz));
-    return vec4f(x, y, z, 1.0);
+    let ox: f32 = pos.x * s;
+    let oy: f32 = pos.y * s;
+    let oz: f32 = pos.z * s;
+    let r: f32 = noise3(vec3f(oy, oz, ox));
+    let g: f32 = noise3(vec3f(oz, ox, oy));
+    let b: f32 = noise3(vec3f(ox, oy, oz));
+    return vec4f(r, g, b, 1.0);
+}
+
+fn clusterShade(id: u32) -> vec4f {
+    let f: f32 = f32(id);
+    let ox: f32 = f * 85.0;
+    let oy: f32 = f * 12.0;
+    let oz: f32 = f * 131.0;
+    let r: f32 = noise3(vec3f(oy, oz, ox));
+    let g: f32 = noise3(vec3f(oz, ox, oy));
+    let b: f32 = noise3(vec3f(ox, oy, oz));
+    return vec4f(r, g, b, 1.0);
+}
+
+fn normalShade(pos: vec3f) -> vec4f {
+    let normal: vec3f = normalize(cross(dpdx(pos), dpdy(pos)));
+    return vec4f(normal * 0.5 + 0.5, 1.0);
 }
 
 fn mod289(x: vec4f) -> vec4f {
