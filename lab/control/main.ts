@@ -133,7 +133,6 @@ window.addEventListener("compile", async (_event: Event): Promise<void> => {
     );
     const vertexData: Float32Array = ObjParser.Parse(raw);
     const vertexCount: int = vertexData.length / 4;
-    log(vertexCount);
 
     const vertexArrayBuffer = vertexData.buffer;
 
@@ -143,49 +142,76 @@ window.addEventListener("compile", async (_event: Event): Promise<void> => {
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     } as GPUBufferDescriptor);
 
-    const clusterIdData: Uint32Array = new Uint32Array(vertexArrayBuffer);
+    log("construct original: ", vertexCount);
 
-    let currentId: int = 2;
-    //let currentCount: int = 0;
-    const currentVerts: int[] = [];
-    let diffX: float = 0;
-    let diffY: float = 0;
-    let diffZ: float = 0;
-    let distanceSquared: float = 0;
-
-    let i: int;
-    let j: int;
-    for (i = 0; i < vertexCount; i++) {
-        if (clusterIdData[i * 4 + 3] !== 0.0) {
-            continue;
-        }
-        clusterIdData[i * 4 + 3] = currentId;
-        /*
-        currentVerts.push(i);
-        for (j = 0; j < 128; j++) {
-            if (currentVerts.length > 128) {
-                break;
-            }
-            if (clusterIdData[j * 4 + 3] !== 0.0) {
-                continue;
-            }
-            if (currentVerts.includes(j)) {
-                continue;
-            }
-            diffX = clusterIdData[i * 4 + 0] - clusterIdData[j * 4 + 0];
-            diffY = clusterIdData[i * 4 + 1] - clusterIdData[j * 4 + 1];
-            diffZ = clusterIdData[i * 4 + 2] - clusterIdData[j * 4 + 2];
-            distanceSquared = diffX * diffX + diffY * diffY + diffZ * diffZ;
-            if (distanceSquared < 16384) {
-                currentVerts.push(j);
-                clusterIdData[j * 4 + 3] = currentId;
-            }
-        }
-        */
-        currentId++;
-        currentVerts.clear();
+    let diffX: int;
+    let diffY: int;
+    let diffZ: int;
+    function distanceSqrt(a: int, b: int): float {
+        diffX = vertexData[b * 4 + 0] - vertexData[a * 4 + 0];
+        diffY = vertexData[b * 4 + 1] - vertexData[a * 4 + 1];
+        diffZ = vertexData[b * 4 + 2] - vertexData[a * 4 + 2];
+        return diffX * diffX + diffY * diffY + diffZ * diffZ;
     }
-    log("complete");
+
+    const clusterIdData: Uint32Array = new Uint32Array(vertexArrayBuffer);
+    let currentId: int = 1;
+    function split(list: int[]): void {
+        let i: int;
+        if (list.length < 2048) {
+            for (i = 0; i < list.length; i++) {
+                clusterIdData[list[i] * 4 + 3] = currentId;
+            }
+            //log(currentId, list.length);
+            currentId++;
+            return;
+        }
+        const a: int[] = [];
+        const b: int[] = [];
+        const northpole: int = list[Math.floor(Math.random() * list.length)];
+        let southpole: int = -1;
+        let southpoleDistance: float = 0.0;
+        let currentDistance: float;
+        for (i = 0; i < list.length; i++) {
+            if (list[i] === northpole) {
+                continue;
+            }
+            currentDistance = distanceSqrt(list[i], northpole);
+            if (southpole === -1 || currentDistance > southpoleDistance) {
+                southpole = list[i];
+                southpoleDistance = currentDistance;
+            }
+        }
+        let aDistance: float;
+        let bDistance: float;
+        for (i = 0; i < list.length; i++) {
+            if (list[i] === northpole) {
+                a.push(list[i]);
+                continue;
+            }
+            if (list[i] === southpole) {
+                b.push(list[i]);
+                continue;
+            }
+            aDistance = distanceSqrt(list[i], northpole);
+            bDistance = distanceSqrt(list[i], southpole);
+            if (aDistance < bDistance) {
+                a.push(list[i]);
+            } else {
+                b.push(list[i]);
+            }
+        }
+        split(a);
+        split(b);
+    }
+    const initial: int[] = [];
+    for (let i: int = 0; i < vertexCount; i++) {
+        initial.push(i);
+        clusterIdData[i * 4 + 3] = 0;
+    }
+    const pre: float = performance.now();
+    split(initial);
+    log("complete", currentId, performance.now() - pre);
 
     device.queue.writeBuffer(verteciesBuffer, 0, vertexArrayBuffer);
 

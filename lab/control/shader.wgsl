@@ -53,10 +53,13 @@ fn triangleShade(pos: vec3f) -> vec4f {
 }
 
 fn clusterShade(id: u32) -> vec4f {
+    if (id == 0) {
+        return vec4f(1.0, 1.0, 1.0, 1.0);
+    }
     let f: f32 = f32(id);
-    let ox: f32 = f * 85.0;
-    let oy: f32 = f * 12.0;
-    let oz: f32 = f * 131.0;
+    let ox: f32 = f * 1.0;
+    let oy: f32 = f * 2.0;
+    let oz: f32 = f * 3.0;
     let r: f32 = noise3(vec3f(oy, oz, ox));
     let g: f32 = noise3(vec3f(oz, ox, oy));
     let b: f32 = noise3(vec3f(ox, oy, oz));
