@@ -156,6 +156,7 @@ window.addEventListener("compile", async (_event: Event): Promise<void> => {
 
     const clusterIdData: Uint32Array = new Uint32Array(vertexArrayBuffer);
     let currentId: int = 1;
+    const clusters: Map<int, int[]> = new Map<int, int[]>();
     function split(list: int[]): void {
         let i: int;
         if (list.length < 2048) {
@@ -163,6 +164,7 @@ window.addEventListener("compile", async (_event: Event): Promise<void> => {
                 clusterIdData[list[i] * 4 + 3] = currentId;
             }
             //log(currentId, list.length);
+            clusters.set(currentId, list);
             currentId++;
             return;
         }
@@ -211,6 +213,7 @@ window.addEventListener("compile", async (_event: Event): Promise<void> => {
     }
     const pre: float = performance.now();
     split(initial);
+    log(clusters);
     log("complete", currentId, performance.now() - pre);
 
     device.queue.writeBuffer(verteciesBuffer, 0, vertexArrayBuffer);
