@@ -143,7 +143,7 @@ window.addEventListener("compile", async (_event: Event): Promise<void> => {
     } as GPUBufferDescriptor);
 
     log("construct original: ", vertexCount);
-
+    /*
     let diffX: int;
     let diffY: int;
     let diffZ: int;
@@ -215,7 +215,8 @@ window.addEventListener("compile", async (_event: Event): Promise<void> => {
     split(initial);
     log(clusters);
     log("complete", currentId, performance.now() - pre);
-
+    */
+    (window as any).setMode(0);
     device.queue.writeBuffer(verteciesBuffer, 0, vertexArrayBuffer);
 
     //////////// BINDGROUP ////////////

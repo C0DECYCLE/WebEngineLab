@@ -376,7 +376,7 @@ class Mat4 {
     }
 
     public aim(pos: Vec3, dir: Vec3, up: Vec3): Mat4 {
-        const xAxis: Vec3 = Vec3.Cross(up, dir);
+        const xAxis: Vec3 = Vec3.Cross(up, dir).normalize();
         const yAxis: Vec3 = Vec3.Cross(dir, xAxis);
         // prettier-ignore
         return this.set(
@@ -388,7 +388,7 @@ class Mat4 {
     }
 
     public view(pos: Vec3, dir: Vec3, up: Vec3): Mat4 {
-        const xAxis: Vec3 = Vec3.Cross(up, dir);
+        const xAxis: Vec3 = Vec3.Cross(up, dir).normalize();
         const yAxis: Vec3 = Vec3.Cross(dir, xAxis);
         const posI: Vec3 = new Vec3(
             -(xAxis.x * pos.x + xAxis.y * pos.y + xAxis.z * pos.z),
