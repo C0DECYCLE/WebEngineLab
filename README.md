@@ -2,11 +2,8 @@
 
 > Experimental lab for the lightweight fast graphics engine for the web.
 
-> make big plan for nanite like system, ideas, brain storm and preplan algorithms and optimization ideas and roadmap etc.
-
 ## Notes
 
--   clean up, professionalize, own repo? name?
 -   wrap/unwrap
 -   simplify
 -   bounding boxes
@@ -17,8 +14,6 @@
 -   per triangle or per vertex
 -   improve clustering algorithm
 -   merge chlusters based on original splitting
-
-## Brainstorming
 
 ### Cluster
 
