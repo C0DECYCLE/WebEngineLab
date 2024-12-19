@@ -1,6 +1,6 @@
 # 🪶 WebEngine Lab
 
-> Experimental lab for the lightweight fast graphics engine for the web.
+> Experimental lab for a lightweight graphics engine for the web.
 
 ## Notes
 
